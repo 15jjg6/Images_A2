@@ -7,6 +7,9 @@
 
 import sys, os, math
 
+# adding cmath library to compute e^{complex number} in multiplyFTs
+import cmath
+
 import numpy as np
 
 from PIL import Image
@@ -48,7 +51,7 @@ imageFT  = None                   # the image's FT as a 2D np.array
 # Filter
 
 filterDir      = 'filters'
-filterFilename = 'gaussian7'
+filterFilename = 'box11'
 filterPath     = os.path.join( filterDir, filterFilename )
 
 filter   = None                   # the filter as a 2D np.array
@@ -128,6 +131,8 @@ def inverseFT( image ):
  
   return transformedImage
 
+def invertFunction(x, y): 
+  return 1 if (x + y) % 2 == 0 else -1
 
 # Multiply two FTs
 #
@@ -141,9 +146,9 @@ def inverseFT( image ):
 
 def multiplyFTs( image, filter ):
 
-  # YOUR CODE HERE
-
-  return image # (this is wrong) 
+   
+  fourierShift = np.fromfunction(lambda x, y: pow(-1, x + y), filter.shape)
+  return np.multiply(np.multiply(filter, fourierShift), image)
 
 
 
@@ -408,11 +413,14 @@ def histoEq( pixels ):
   return result
   
 
-# Handle keyboard input
 
 def keyboard( key, x, y ):
 
   global image, filter, product, showMagnitude, doHistoEq, productFT, filterFT, imageFT, imageFilename, filterFilename, filterPath, radius, editMode, zoom, translate, centreFT
+
+  # Change to original code: code interprets key presses as byte literals, and 
+  # to fix this I am converting these to strings.
+  key = key.decode('UTF-8')
 
   if key == '\033': # ESC = exit
     sys.exit(0)
@@ -846,7 +854,7 @@ if len(sys.argv) > 3:
     elif cmd == 'p':
       outputMagnitudes = False
     elif cmd == 'x':
-      productFT = multiplyFTs( imageFT, filterFT )
+      productFT = ultiplyFTs( imageFT, filterFT )
     elif cmd[0] in ['o','e']: # image name follows first letter
       sources = { 'i': image, 'ift': imageFT, 'f': filter, 'fft': filterFT, 'p': product, 'pft': productFT }
       isFT    = { 'i': False, 'ift': True,    'f': False,  'fft': True,     'p': False,   'pft': True      }
