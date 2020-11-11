@@ -7,9 +7,6 @@
 
 import sys, os, math
 
-# adding cmath library to compute e^{complex number} in multiplyFTs
-import cmath
-
 import numpy as np
 
 from PIL import Image
@@ -42,7 +39,7 @@ useTK = False
 # Image
 
 imageDir      = 'images'
-imageFilename = 'clown.jpg'
+imageFilename = 'canvas.jpg'
 imagePath     = os.path.join( imageDir, imageFilename )
 
 image    = None                   # the image as a 2D np.array
@@ -51,7 +48,7 @@ imageFT  = None                   # the image's FT as a 2D np.array
 # Filter
 
 filterDir      = 'filters'
-filterFilename = 'box11'
+filterFilename = 'box3'
 filterPath     = os.path.join( filterDir, filterFilename )
 
 filter   = None                   # the filter as a 2D np.array
@@ -102,12 +99,14 @@ def forwardFT( image ):
   return transformedImage
 
 
-# 1D Inverse FT
+# 1D Inverse FT - helper function for full 2D Inverse FT
+# Takes in a numpy 1D array and computes its inverse Fourier
+# transform using algorithm #4 from the below link: 
+
+# https://www.dsprelated.com/showarticle/800.php
 
 def ift1D( signal ):
-  #invSignal = np.empty(signal.shape, dtype="complex")
   invSignal = ft1D(signal.real - 1j * signal.imag)
-  
   invSignal.imag = invSignal.imag * -1
   return invSignal / signal.shape[0]
 
@@ -117,7 +116,8 @@ def ift1D( signal ):
 # Input is a 2D numpy array of complex values.
 # Output is the same.
 
-
+# This algorithm looks very similar to the forward FT but uses 
+# the ift1D function instead of the ft1D function.
 def inverseFT( image ):
 
   rows, cols = image.shape
@@ -128,11 +128,8 @@ def inverseFT( image ):
 
   for col in range(cols):
     transformedImage[:, col] = ift1D(transformedImage[:, col])
- 
   return transformedImage
 
-def invertFunction(x, y): 
-  return 1 if (x + y) % 2 == 0 else -1
 
 # Multiply two FTs
 #
@@ -143,13 +140,16 @@ def invertFunction(x, y):
 # To do this, first multiply the filter by e^{2 pi i x (N/2)/N} for
 # width N and by e^{2 pi i y (M/2)/M} for height M.
 
-
+# Since the above equations simplify to $e^{pi i x} * e^{pi i y}$, or
+# $(-1)^(x+y)$, I created an array that represents these calculations 
+# at each point and pointwise multiplied the results and the filter 
+# at each location.
 def multiplyFTs( image, filter ):
-
-   
+  # creates a matrix of alternating 1's and -1's that is equivalent to
+  # $e^{pi i x} * e^{pi i y}$ at each point.
   fourierShift = np.fromfunction(lambda x, y: pow(-1, x + y), filter.shape)
+  # multiply the filter, fourierShift and image matrices pointwise
   return np.multiply(np.multiply(filter, fourierShift), image)
-
 
 
 # Set up the display and draw the current image
@@ -791,12 +791,29 @@ def mouseMotion( x, y ):
 
 
 def modulatePixels( image, x, y, isFT ):
+  # generate a gaussian distribution with center at (rad, rad).
+  gaussian = generateGaussDist(radius) 
 
-  # YOUR CODE HERE
-
-  pass
-
-
+  # for loop applying the gaussian values
+  for row in range(-radius, radius+1):    # row and y together
+    for col in range(-radius, radius+1):  # col and x together
+      # get the modulation factor (addition or subtraction) from the gaussian
+      factor = modulationFactor(row, col, gaussian)
+      # calculate x/y position to be changed on image
+      xPos = int(wrap(col + x, image.shape[1]))
+      yPos = int(wrap(row + y, image.shape[0]))
+      # calculate x/y position to be changed if isFT is true
+      xCenter = int(image.shape[1] - 1 - xPos)
+      yCenter = int(image.shape[0] - 1 - yPos)
+      if isFT: 
+        # exponential factor applied for modulation of FT
+        # The logic for this factor is explained in README.txt
+        image[yPos, xPos] = image[yPos, xPos] ** factor
+        image[yCenter, xCenter] = image[yCenter, xCenter] ** factor 
+      else: 
+        # multiplication factor applied for modulation of images
+        image[yPos, xPos] = image[yPos, xPos] * factor
+      
 
 # For an image coordinate, if it's < 0 or >= max, wrap the coorindate
 # around so that it's in the range [0,max-1].  This is useful in the
@@ -810,6 +827,29 @@ def wrap( val, max ):
     return val-max
   else:
     return val
+ 
+
+# Generates a gaussian distribution with standard deviation of half of the radius.
+def generateGaussDist(rad):
+  # creates two arrays with x/y being distance from the center
+  x, y = np.meshgrid(
+          np.linspace(-rad, rad, num=rad * 2 + 1 ),
+          np.linspace(-rad, rad, num=rad * 2 + 1 )
+          )
+  # creates an array with dimensions (rad*2+1,rad*2+1) and values equal to 
+  # Euclidean distance from center squared.
+  d = np.array(x*x+y*y)
+  # sets standard deviation to be 1/2 of the radius.
+  sigma = rad/2
+  # generates the Gaussian distribution using the distance metric in d
+  return np.exp(-(d / (2 * sigma**2))) 
+  
+
+# Calculates modulation factor for pixels based on the gaussian and edit mode
+def modulationFactor(row, col, gaussian):
+  if editMode == 's': 
+    return 1 -  gaussian[col+radius, row+radius]
+  return 1 + 0.1 * gaussian[col+radius, row+radius] 
 
 
 
